@@ -22,22 +22,27 @@ fun DashboardScreen(navController: NavController) {
     })
     val device by vm.connectedDevice.collectAsState()
     val battery by vm.batteryLevel.collectAsState()
+    val connected by vm.isConnected.collectAsState()
 
     LaunchedEffect(Unit) { vm.refresh() }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Philips TAH6519 Companion", style = MaterialTheme.typography.headlineMedium)
+        Text("Philips TAH6519", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(24.dp))
-        Text("Status: ${if (device != null) "Connected" else "Not found"}")
-        Text("Device: ${device?.name ?: "-"}")
-        Text("Battery: ${if (battery >= 0) "$battery%" else "Unknown"}")
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Status: ${if (connected) "Connected" else "Disconnected"}")
+                Text("Device: ${device?.name ?: "Not found"}")
+                Text("Battery: ${if (battery >= 0) "$battery%" else "Unknown"}")
+            }
+        }
         Spacer(Modifier.height(16.dp))
-        Text("ANC: Use the physical button on headphones to cycle ANC / Normal / Transparency")
+        Text("ANC / Transparency: Use physical button on headphones")
         Spacer(Modifier.height(24.dp))
-        Button(onClick = { navController.navigate("media") }) { Text("Media Controls") }
+        Button(onClick = { navController.navigate("media") }, modifier = Modifier.fillMaxWidth()) { Text("Media Controls") }
         Spacer(Modifier.height(8.dp))
-        Button(onClick = { navController.navigate("eq") }) { Text("Equalizer") }
+        Button(onClick = { navController.navigate("eq") }, modifier = Modifier.fillMaxWidth()) { Text("Equalizer") }
         Spacer(Modifier.height(8.dp))
-        Button(onClick = { vm.refresh() }) { Text("Refresh") }
+        Button(onClick = { vm.refresh() }, modifier = Modifier.fillMaxWidth()) { Text("Refresh") }
     }
 }
