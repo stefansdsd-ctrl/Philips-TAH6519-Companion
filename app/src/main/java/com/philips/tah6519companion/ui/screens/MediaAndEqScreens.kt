@@ -6,6 +6,11 @@ import android.media.audiofx.Equalizer
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,33 +22,56 @@ import androidx.compose.ui.unit.dp
 fun MediaScreen() {
     val context = LocalContext.current
     var controller by remember { mutableStateOf<MediaController?>(null) }
-    var title by remember { mutableStateOf("No media") }
+    var title by remember { mutableStateOf("Geen media") }
+    var artist by remember { mutableStateOf("") }
     var isPlaying by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
+    DisposableEffect(Unit) {
         val msm = context.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
         val sessions = msm.getActiveSessions(null)
-        controller = sessions.firstOrNull()?.let { MediaController(context, it.sessionToken) }
-        controller?.let {
-            title = it.metadata?.getString(android.media.MediaMetadata.METADATA_KEY_TITLE) ?: "Unknown"
+        val mc = sessions.firstOrNull()?.let { MediaController(context, it.sessionToken) }
+        controller = mc
+
+        val callback = object : MediaController.Callback() {
+            override fun onMetadataChanged(metadata: android.media.MediaMetadata?) {
+                title = metadata?.getString(android.media.MediaMetadata.METADATA_KEY_TITLE) ?: "Onbekend"
+                artist = metadata?.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST) ?: ""
+            }
+            override fun onPlaybackStateChanged(state: android.media.session.PlaybackState?) {
+                isPlaying = state?.state == android.media.session.PlaybackState.STATE_PLAYING
+            }
+        }
+        mc?.registerCallback(callback)
+        // Initial load
+        mc?.let {
+            title = it.metadata?.getString(android.media.MediaMetadata.METADATA_KEY_TITLE) ?: "Onbekend"
+            artist = it.metadata?.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST) ?: ""
             isPlaying = it.playbackState?.state == android.media.session.PlaybackState.STATE_PLAYING
+        }
+
+        onDispose {
+            mc?.unregisterCallback(callback)
         }
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Media Controls", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(16.dp))
-        Text(title)
-        Spacer(Modifier.height(16.dp))
-        Row {
-            Button(onClick = { controller?.transportControls?.skipToPrevious() }) { Text("Prev") }
-            Spacer(Modifier.width(8.dp))
-            Button(onClick = {
+        Text(title, style = MaterialTheme.typography.titleMedium)
+        if (artist.isNotEmpty()) Text(artist, style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.height(24.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            IconButton(onClick = { controller?.transportControls?.skipToPrevious() }) {
+                Icon(Icons.Default.SkipPrevious, contentDescription = "Vorige")
+            }
+            FilledIconButton(onClick = {
                 if (isPlaying) controller?.transportControls?.pause() else controller?.transportControls?.play()
-                isPlaying = !isPlaying
-            }) { Text(if (isPlaying) "Pause" else "Play") }
-            Spacer(Modifier.width(8.dp))
-            Button(onClick = { controller?.transportControls?.skipToNext() }) { Text("Next") }
+            }) {
+                Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, contentDescription = null)
+            }
+            IconButton(onClick = { controller?.transportControls?.skipToNext() }) {
+                Icon(Icons.Default.SkipNext, contentDescription = "Volgende")
+            }
         }
     }
 }
@@ -67,28 +95,30 @@ fun EqualizerScreen() {
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("System Equalizer", style = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.height(16.dp))
-        Text("Applies to global audio session")
-        Spacer(Modifier.height(16.dp))
-        Button(onClick = {
-            bass?.setStrength(1000.toShort())
-            eq?.let { e ->
-                for (i in 0 until e.numberOfBands) e.setBandLevel(i.toShort(), 0)
-            }
-        }) { Text("Bass Boost") }
-        Button(onClick = {
-            bass?.setStrength(0)
-            eq?.let { e ->
-                for (i in 0 until e.numberOfBands) e.setBandLevel(i.toShort(), 0)
-            }
-        }) { Text("Flat") }
-        Button(onClick = {
-            eq?.let { e ->
-                if (e.numberOfBands > 2) {
-                    e.setBandLevel(1.toShort(), 500)
-                    e.setBandLevel(2.toShort(), 800)
+        Spacer(Modifier.height(8.dp))
+        Text("Geldt voor globale audio sessie", style = MaterialTheme.typography.bodySmall)
+        Spacer(Modifier.height(24.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = {
+                bass?.setStrength(1000.toShort())
+                eq?.let { e -> (0 until e.numberOfBands).forEach { e.setBandLevel(it.toShort(), 0) } }
+            }) { Text("Bass+") }
+            Button(onClick = {
+                bass?.setStrength(0)
+                eq?.let { e -> (0 until e.numberOfBands).forEach { e.setBandLevel(it.toShort(), 0) } }
+            }) { Text("Flat") }
+            Button(onClick = {
+                eq?.let { e ->
+                    if (e.numberOfBands > 3) {
+                        e.setBandLevel(1.toShort(), 600)
+                        e.setBandLevel(2.toShort(), 900)
+                        e.setBandLevel(3.toShort(), 300)
+                    }
                 }
-            }
-        }) { Text("Vocal") }
+            }) { Text("Vocal") }
+        }
+        Spacer(Modifier.height(16.dp))
+        Text("Let op: Systeem EQ werkt niet altijd op alle apps/apparaten.")
     }
 }

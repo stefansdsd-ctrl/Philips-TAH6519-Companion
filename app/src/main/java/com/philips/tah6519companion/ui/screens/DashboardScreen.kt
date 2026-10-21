@@ -1,6 +1,11 @@
 package com.philips.tah6519companion.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BatteryFull
+import androidx.compose.material.icons.filled.BatteryAlert
+import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,23 +31,52 @@ fun DashboardScreen(navController: NavController) {
 
     LaunchedEffect(Unit) { vm.refresh() }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(Icons.Default.Headphones, contentDescription = null, modifier = Modifier.size(64.dp))
+        Spacer(Modifier.height(8.dp))
         Text("Philips TAH6519", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(24.dp))
+
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Status: ${if (connected) "Connected" else "Disconnected"}")
-                Text("Device: ${device?.name ?: "Not found"}")
-                Text("Battery: ${if (battery >= 0) "$battery%" else "Unknown"}")
+                Text("Status: ${if (connected) "Verbonden" else "Niet verbonden"}", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+                Text("Apparaat: ${device?.name ?: "Niet gevonden"}")
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val icon = if (battery in 0..15) Icons.Default.BatteryAlert else Icons.Default.BatteryFull
+                    Icon(icon, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Batterij: ${if (battery >= 0) "$battery%" else "Onbekend"}")
+                }
+                if (battery >= 0) {
+                    LinearProgressIndicator(
+                        progress = battery / 100f,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                    )
+                }
             }
         }
+
         Spacer(Modifier.height(16.dp))
-        Text("ANC / Transparency: Use physical button on headphones")
+        Text("ANC / Transparantie: Gebruik de fysieke knop op de koptelefoon", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(24.dp))
-        Button(onClick = { navController.navigate("media") }, modifier = Modifier.fillMaxWidth()) { Text("Media Controls") }
+
+        Button(onClick = { navController.navigate("media") }, modifier = Modifier.fillMaxWidth()) {
+            Text("Media Controls")
+        }
         Spacer(Modifier.height(8.dp))
-        Button(onClick = { navController.navigate("eq") }, modifier = Modifier.fillMaxWidth()) { Text("Equalizer") }
+        Button(onClick = { navController.navigate("eq") }, modifier = Modifier.fillMaxWidth()) {
+            Text("Equalizer")
+        }
         Spacer(Modifier.height(8.dp))
-        Button(onClick = { vm.refresh() }, modifier = Modifier.fillMaxWidth()) { Text("Refresh") }
+        OutlinedButton(onClick = { vm.refresh() }, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.Refresh, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Vernieuwen")
+        }
     }
 }
