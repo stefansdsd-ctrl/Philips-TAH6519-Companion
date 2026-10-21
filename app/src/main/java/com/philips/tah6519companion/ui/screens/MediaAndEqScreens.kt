@@ -1,6 +1,7 @@
 package com.philips.tah6519companion.ui.screens
 
 import android.content.Context
+import android.media.AudioManager
 import android.media.audiofx.BassBoost
 import android.media.audiofx.Equalizer
 import android.media.session.MediaController
@@ -21,10 +22,12 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun MediaScreen() {
     val context = LocalContext.current
+    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     var controller by remember { mutableStateOf<MediaController?>(null) }
     var title by remember { mutableStateOf("Geen media") }
     var artist by remember { mutableStateOf("") }
     var isPlaying by remember { mutableStateOf(false) }
+    var volume by remember { mutableFloatStateOf(audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)) }
 
     DisposableEffect(Unit) {
         val msm = context.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
@@ -42,7 +45,6 @@ fun MediaScreen() {
             }
         }
         mc?.registerCallback(callback)
-        // Initial load
         mc?.let {
             title = it.metadata?.getString(android.media.MediaMetadata.METADATA_KEY_TITLE) ?: "Onbekend"
             artist = it.metadata?.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST) ?: ""
@@ -73,6 +75,16 @@ fun MediaScreen() {
                 Icon(Icons.Default.SkipNext, contentDescription = "Volgende")
             }
         }
+        Spacer(Modifier.height(24.dp))
+        Text("Volume")
+        Slider(
+            value = volume,
+            onValueChange = {
+                volume = it
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (it * audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)).toInt(), 0)
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
@@ -110,13 +122,25 @@ fun EqualizerScreen() {
             }) { Text("Flat") }
             Button(onClick = {
                 eq?.let { e ->
-                    if (e.numberOfBands > 3) {
+                    if (e.numberOfBands > 4) {
+                        e.setBandLevel(0.toShort(), 400)
                         e.setBandLevel(1.toShort(), 600)
                         e.setBandLevel(2.toShort(), 900)
                         e.setBandLevel(3.toShort(), 300)
                     }
                 }
             }) { Text("Vocal") }
+            Button(onClick = {
+                eq?.let { e ->
+                    if (e.numberOfBands > 4) {
+                        e.setBandLevel(0.toShort(), -200)
+                        e.setBandLevel(1.toShort(), 0)
+                        e.setBandLevel(2.toShort(), 400)
+                        e.setBandLevel(3.toShort(), 700)
+                        e.setBandLevel(4.toShort(), 500)
+                    }
+                }
+            }) { Text("Treble") }
         }
         Spacer(Modifier.height(16.dp))
         Text("Let op: Systeem EQ werkt niet altijd op alle apps/apparaten.")
