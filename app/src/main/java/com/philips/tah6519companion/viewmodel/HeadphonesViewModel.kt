@@ -21,6 +21,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class HeadphonesViewModel(private val context: Context) : ViewModel() {
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
@@ -36,6 +39,9 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
 
     private val _isConnected = MutableStateFlow(false)
     val isConnected: StateFlow<Boolean> = _isConnected
+
+    private val _lastUpdate = MutableStateFlow("")
+    val lastUpdate: StateFlow<String> = _lastUpdate
 
     private val profileListener = object : BluetoothProfile.ServiceListener {
         override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
@@ -97,9 +103,10 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
     private fun updateNotification(battery: Int, connected: Boolean, name: String?) {
         val intent = Intent(context, MainActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_SINGLE_TOP }
         val pending = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val text = if (connected) "${name ?: "TAH6519"} • ${if (battery >= 0) "$battery%" else "batterij onbekend"}" else "Niet verbonden"
+        val batteryText = if (battery >= 0) "$battery%" else "batterij onbekend"
+        val text = if (connected) "${name ?: "TAH6519"} • $batteryText" else "Niet verbonden"
         val notif = NotificationCompat.Builder(context, "tah6519")
-            .setSmallIcon(android.R.drawable.ic_lock_silent_mode)
+            .setSmallIcon(if (battery in 0..20) android.R.drawable.stat_notify_error else android.R.drawable.ic_lock_silent_mode)
             .setContentTitle("Philips TAH6519")
             .setContentText(text)
             .setContentIntent(pending)
@@ -142,6 +149,7 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
                 battery = getBatteryLevel(it)
             }
             if (battery >= 0) _batteryLevel.value = battery
+            _lastUpdate.value = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             updateNotification(battery, connected, device?.name)
         }
     }
