@@ -57,7 +57,17 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
                 BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED,
                 BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED,
                 "android.bluetooth.device.action.BATTERY_LEVEL_CHANGED",
-                BluetoothHeadset.ACTION_HF_INDICATORS_VALUE_CHANGED -> refresh()
+                BluetoothHeadset.ACTION_HF_INDICATORS_VALUE_CHANGED -> {
+                    // Handle HF battery indicator (ID 2)
+                    if (intent.action == BluetoothHeadset.ACTION_HF_INDICATORS_VALUE_CHANGED) {
+                        val id = intent.getIntExtra(BluetoothHeadset.EXTRA_HF_INDICATORS_IND_ID, -1)
+                        if (id == 2) {
+                            val value = intent.getIntExtra(BluetoothHeadset.EXTRA_HF_INDICATORS_IND_VALUE, -1)
+                            if (value >= 0) _batteryLevel.value = value
+                        }
+                    }
+                    refresh()
+                }
             }
         }
     }
@@ -132,7 +142,7 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
             device?.let {
                 battery = getBatteryLevel(it)
             }
-            _batteryLevel.value = battery
+            if (battery >= 0) _batteryLevel.value = battery
             updateNotification(battery, connected, device?.name)
         }
     }
