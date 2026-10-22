@@ -20,7 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import android.graphics.BitmapFactory
 
 @Composable
 fun MediaScreen() {
@@ -43,8 +42,7 @@ fun MediaScreen() {
             override fun onMetadataChanged(metadata: android.media.MediaMetadata?) {
                 title = metadata?.getString(android.media.MediaMetadata.METADATA_KEY_TITLE) ?: "Onbekend"
                 artist = metadata?.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST) ?: ""
-                val art = metadata?.getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART)
-                albumArt = art
+                albumArt = metadata?.getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART)
             }
             override fun onPlaybackStateChanged(state: android.media.session.PlaybackState?) {
                 isPlaying = state?.state == android.media.session.PlaybackState.STATE_PLAYING
@@ -58,9 +56,7 @@ fun MediaScreen() {
             albumArt = it.metadata?.getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART)
         }
 
-        onDispose {
-            mc?.unregisterCallback(callback)
-        }
+        onDispose { mc?.unregisterCallback(callback) }
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -104,11 +100,15 @@ fun EqualizerScreen() {
     val context = LocalContext.current
     var eq by remember { mutableStateOf<Equalizer?>(null) }
     var bass by remember { mutableStateOf<BassBoost?>(null) }
+    var bandLevels by remember { mutableStateOf(listOf(0, 0, 0, 0, 0)) }
 
     DisposableEffect(Unit) {
         try {
             eq = Equalizer(0, 0).apply { enabled = true }
             bass = BassBoost(0, 0).apply { enabled = true }
+            eq?.let { e ->
+                bandLevels = (0 until minOf(5, e.numberOfBands)).map { e.getBandLevel(it.toShort()).toInt() }
+            }
         } catch (_: Exception) {}
         onDispose {
             eq?.release()
@@ -120,68 +120,42 @@ fun EqualizerScreen() {
         Text("System Equalizer", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(8.dp))
         Text("Geldt voor globale audio sessie", style = MaterialTheme.typography.bodySmall)
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(16.dp))
 
+        // Custom sliders
+        eq?.let { e ->
+            val bands = minOf(5, e.numberOfBands)
+            repeat(bands) { i ->
+                Text("Band ${i + 1}: ${bandLevels.getOrElse(i) { 0 }} mB")
+                Slider(
+                    value = bandLevels.getOrElse(i) { 0 }.toFloat(),
+                    onValueChange = { v ->
+                        val newLevels = bandLevels.toMutableList()
+                        if (i < newLevels.size) newLevels[i] = v.toInt()
+                        else newLevels.add(v.toInt())
+                        bandLevels = newLevels
+                        e.setBandLevel(i.toShort(), v.toInt().toShort())
+                    },
+                    valueRange = -1500f..1500f,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             Button(onClick = {
                 bass?.setStrength(1000.toShort())
                 eq?.let { e -> (0 until e.numberOfBands).forEach { e.setBandLevel(it.toShort(), 0) } }
+                bandLevels = List(5) { 0 }
             }, modifier = Modifier.weight(1f)) { Text("Bass+") }
             Button(onClick = {
                 bass?.setStrength(0)
                 eq?.let { e -> (0 until e.numberOfBands).forEach { e.setBandLevel(it.toShort(), 0) } }
+                bandLevels = List(5) { 0 }
             }, modifier = Modifier.weight(1f)) { Text("Flat") }
         }
         Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(onClick = {
-                eq?.let { e ->
-                    if (e.numberOfBands > 4) {
-                        e.setBandLevel(0.toShort(), 400)
-                        e.setBandLevel(1.toShort(), 600)
-                        e.setBandLevel(2.toShort(), 900)
-                        e.setBandLevel(3.toShort(), 300)
-                    }
-                }
-            }, modifier = Modifier.weight(1f)) { Text("Vocal") }
-            Button(onClick = {
-                eq?.let { e ->
-                    if (e.numberOfBands > 4) {
-                        e.setBandLevel(0.toShort(), -200)
-                        e.setBandLevel(1.toShort(), 0)
-                        e.setBandLevel(2.toShort(), 400)
-                        e.setBandLevel(3.toShort(), 700)
-                        e.setBandLevel(4.toShort(), 500)
-                    }
-                }
-            }, modifier = Modifier.weight(1f)) { Text("Treble") }
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(onClick = {
-                eq?.let { e ->
-                    if (e.numberOfBands > 4) {
-                        e.setBandLevel(0.toShort(), 300)
-                        e.setBandLevel(1.toShort(), 200)
-                        e.setBandLevel(2.toShort(), 100)
-                        e.setBandLevel(3.toShort(), 200)
-                        e.setBandLevel(4.toShort(), 300)
-                    }
-                }
-            }, modifier = Modifier.weight(1f)) { Text("Music") }
-            Button(onClick = {
-                eq?.let { e ->
-                    if (e.numberOfBands > 4) {
-                        e.setBandLevel(0.toShort(), 100)
-                        e.setBandLevel(1.toShort(), 500)
-                        e.setBandLevel(2.toShort(), 800)
-                        e.setBandLevel(3.toShort(), 400)
-                        e.setBandLevel(4.toShort(), 100)
-                    }
-                }
-            }, modifier = Modifier.weight(1f)) { Text("Podcast") }
-        }
-        Spacer(Modifier.height(16.dp))
         Text("Let op: Systeem EQ werkt niet altijd op alle apps/apparaten.")
     }
 }
