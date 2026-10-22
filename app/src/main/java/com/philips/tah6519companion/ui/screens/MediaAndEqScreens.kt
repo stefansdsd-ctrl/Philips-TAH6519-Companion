@@ -1,6 +1,7 @@
 package com.philips.tah6519companion.ui.screens
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.media.AudioManager
 import android.media.audiofx.BassBoost
 import android.media.audiofx.Equalizer
@@ -20,6 +21,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.edit
+
+private val bandFrequencies = listOf("60 Hz", "230 Hz", "910 Hz", "3.6 kHz", "14 kHz")
 
 @Composable
 fun MediaScreen() {
@@ -98,17 +102,16 @@ fun MediaScreen() {
 @Composable
 fun EqualizerScreen() {
     val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("eq_prefs", Context.MODE_PRIVATE) }
     var eq by remember { mutableStateOf<Equalizer?>(null) }
     var bass by remember { mutableStateOf<BassBoost?>(null) }
-    var bandLevels by remember { mutableStateOf(listOf(0, 0, 0, 0, 0)) }
+    var bandLevels by remember { mutableStateOf(loadLevels(prefs)) }
 
     DisposableEffect(Unit) {
         try {
             eq = Equalizer(0, 0).apply { enabled = true }
             bass = BassBoost(0, 0).apply { enabled = true }
-            eq?.let { e ->
-                bandLevels = (0 until minOf(5, e.numberOfBands)).map { e.getBandLevel(it.toShort()).toInt() }
-            }
+            applyLevels(eq, bass, bandLevels)
         } catch (_: Exception) {}
         onDispose {
             eq?.release()
@@ -116,14 +119,13 @@ fun EqualizerScreen() {
         }
     }
 
-    fun applyPreset(levels: List<Int>, bassStrength: Int = 0) {
-        eq?.let { e ->
-            levels.forEachIndexed { i, level ->
-                if (i < e.numberOfBands) e.setBandLevel(i.toShort(), level.toShort())
-            }
-        }
-        bass?.setStrength(bassStrength.toShort())
+    fun saveAndApply(levels: List<Int>, bassStrength: Int = 0) {
         bandLevels = levels
+        prefs.edit {
+            levels.forEachIndexed { i, v -> putInt("band_$i", v) }
+            putInt("bass", bassStrength)
+        }
+        applyLevels(eq, bass, levels, bassStrength)
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -132,34 +134,33 @@ fun EqualizerScreen() {
         Text("Geldt voor globale audio sessie", style = MaterialTheme.typography.bodySmall)
         Spacer(Modifier.height(16.dp))
 
-        // Presets
         Text("Presets", style = MaterialTheme.typography.titleMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(onClick = { applyPreset(listOf(0, 0, 0, 0, 0)) }, modifier = Modifier.weight(1f)) { Text("Flat") }
-            Button(onClick = { applyPreset(listOf(600, 400, 0, -200, -400), 800) }, modifier = Modifier.weight(1f)) { Text("Bass+") }
-            Button(onClick = { applyPreset(listOf(300, 100, -100, 200, 400)) }, modifier = Modifier.weight(1f)) { Text("Treble") }
+            Button(onClick = { saveAndApply(listOf(0, 0, 0, 0, 0)) }, modifier = Modifier.weight(1f)) { Text("Flat") }
+            Button(onClick = { saveAndApply(listOf(600, 400, 0, -200, -400), 800) }, modifier = Modifier.weight(1f)) { Text("Bass+") }
+            Button(onClick = { saveAndApply(listOf(300, 100, -100, 200, 400)) }, modifier = Modifier.weight(1f)) { Text("Treble") }
         }
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(onClick = { applyPreset(listOf(400, 200, -100, 100, 300)) }, modifier = Modifier.weight(1f)) { Text("Rock") }
-            Button(onClick = { applyPreset(listOf(200, 0, 100, 200, 100)) }, modifier = Modifier.weight(1f)) { Text("Pop") }
-            Button(onClick = { applyPreset(listOf(100, 0, 0, 100, 200)) }, modifier = Modifier.weight(1f)) { Text("Jazz") }
+            Button(onClick = { saveAndApply(listOf(400, 200, -100, 100, 300)) }, modifier = Modifier.weight(1f)) { Text("Rock") }
+            Button(onClick = { saveAndApply(listOf(200, 0, 100, 200, 100)) }, modifier = Modifier.weight(1f)) { Text("Pop") }
+            Button(onClick = { saveAndApply(listOf(100, 0, 0, 100, 200)) }, modifier = Modifier.weight(1f)) { Text("Jazz") }
         }
         Spacer(Modifier.height(16.dp))
 
-        // Custom sliders
         eq?.let { e ->
             val bands = minOf(5, e.numberOfBands)
             repeat(bands) { i ->
-                Text("Band ${i + 1}: ${bandLevels.getOrElse(i) { 0 }} mB")
+                Text("${bandFrequencies.getOrElse(i) { "Band ${i+1}" }}: ${bandLevels.getOrElse(i) { 0 }} mB")
                 Slider(
                     value = bandLevels.getOrElse(i) { 0 }.toFloat(),
                     onValueChange = { v ->
                         val newLevels = bandLevels.toMutableList()
-                        if (i < newLevels.size) newLevels[i] = v.toInt()
-                        else newLevels.add(v.toInt())
+                        while (newLevels.size <= i) newLevels.add(0)
+                        newLevels[i] = v.toInt()
                         bandLevels = newLevels
                         e.setBandLevel(i.toShort(), v.toInt().toShort())
+                        prefs.edit { putInt("band_$i", v.toInt()) }
                     },
                     valueRange = -1500f..1500f,
                     modifier = Modifier.fillMaxWidth()
@@ -170,4 +171,16 @@ fun EqualizerScreen() {
         Spacer(Modifier.height(16.dp))
         Text("Let op: Systeem EQ werkt niet altijd op alle apps/apparaten.")
     }
+}
+
+private fun loadLevels(prefs: SharedPreferences): List<Int> =
+    (0 until 5).map { prefs.getInt("band_$it", 0) }
+
+private fun applyLevels(eq: Equalizer?, bass: BassBoost?, levels: List<Int>, bassStrength: Int = 0) {
+    eq?.let { e ->
+        levels.forEachIndexed { i, level ->
+            if (i < e.numberOfBands) e.setBandLevel(i.toShort(), level.toShort())
+        }
+    }
+    bass?.setStrength(bassStrength.toShort())
 }
