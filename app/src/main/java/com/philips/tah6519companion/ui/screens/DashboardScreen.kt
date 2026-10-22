@@ -28,6 +28,7 @@ fun DashboardScreen(navController: NavController) {
     val device by vm.connectedDevice.collectAsState()
     val battery by vm.batteryLevel.collectAsState()
     val connected by vm.isConnected.collectAsState()
+    val lastUpdate by vm.lastUpdate.collectAsState()
 
     LaunchedEffect(Unit) { vm.refresh() }
 
@@ -57,6 +58,10 @@ fun DashboardScreen(navController: NavController) {
                         progress = battery / 100f,
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                     )
+                }
+                if (lastUpdate.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text("Laatst bijgewerkt: $lastUpdate", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
