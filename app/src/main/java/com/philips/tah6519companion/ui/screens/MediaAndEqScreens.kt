@@ -106,12 +106,13 @@ fun EqualizerScreen() {
     var eq by remember { mutableStateOf<Equalizer?>(null) }
     var bass by remember { mutableStateOf<BassBoost?>(null) }
     var bandLevels by remember { mutableStateOf(loadLevels(prefs)) }
+    var bassStrength by remember { mutableIntStateOf(prefs.getInt("bass", 0)) }
 
     DisposableEffect(Unit) {
         try {
             eq = Equalizer(0, 0).apply { enabled = true }
             bass = BassBoost(0, 0).apply { enabled = true }
-            applyLevels(eq, bass, bandLevels)
+            applyLevels(eq, bass, bandLevels, bassStrength)
         } catch (_: Exception) {}
         onDispose {
             eq?.release()
@@ -119,13 +120,14 @@ fun EqualizerScreen() {
         }
     }
 
-    fun saveAndApply(levels: List<Int>, bassStrength: Int = 0) {
+    fun saveAndApply(levels: List<Int>, strength: Int = bassStrength) {
         bandLevels = levels
+        bassStrength = strength
         prefs.edit {
             levels.forEachIndexed { i, v -> putInt("band_$i", v) }
-            putInt("bass", bassStrength)
+            putInt("bass", strength)
         }
-        applyLevels(eq, bass, levels, bassStrength)
+        applyLevels(eq, bass, levels, strength)
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -136,17 +138,28 @@ fun EqualizerScreen() {
 
         Text("Presets", style = MaterialTheme.typography.titleMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(onClick = { saveAndApply(listOf(0, 0, 0, 0, 0)) }, modifier = Modifier.weight(1f)) { Text("Flat") }
+            Button(onClick = { saveAndApply(listOf(0, 0, 0, 0, 0), 0) }, modifier = Modifier.weight(1f)) { Text("Flat") }
             Button(onClick = { saveAndApply(listOf(600, 400, 0, -200, -400), 800) }, modifier = Modifier.weight(1f)) { Text("Bass+") }
-            Button(onClick = { saveAndApply(listOf(300, 100, -100, 200, 400)) }, modifier = Modifier.weight(1f)) { Text("Treble") }
+            Button(onClick = { saveAndApply(listOf(300, 100, -100, 200, 400), 200) }, modifier = Modifier.weight(1f)) { Text("Treble") }
         }
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(onClick = { saveAndApply(listOf(400, 200, -100, 100, 300)) }, modifier = Modifier.weight(1f)) { Text("Rock") }
-            Button(onClick = { saveAndApply(listOf(200, 0, 100, 200, 100)) }, modifier = Modifier.weight(1f)) { Text("Pop") }
-            Button(onClick = { saveAndApply(listOf(100, 0, 0, 100, 200)) }, modifier = Modifier.weight(1f)) { Text("Jazz") }
+            Button(onClick = { saveAndApply(listOf(400, 200, -100, 100, 300), 400) }, modifier = Modifier.weight(1f)) { Text("Rock") }
+            Button(onClick = { saveAndApply(listOf(200, 0, 100, 200, 100), 100) }, modifier = Modifier.weight(1f)) { Text("Pop") }
+            Button(onClick = { saveAndApply(listOf(100, 0, 0, 100, 200), 0) }, modifier = Modifier.weight(1f)) { Text("Jazz") }
         }
         Spacer(Modifier.height(16.dp))
+
+        Text("Bass Boost: $bassStrength")
+        Slider(
+            value = bassStrength.toFloat(),
+            onValueChange = { v ->
+                bassStrength = v.toInt()
+                saveAndApply(bandLevels, bassStrength)
+            },
+            valueRange = 0f..1000f,
+            modifier = Modifier.fillMaxWidth()
+        )
 
         eq?.let { e ->
             val bands = minOf(5, e.numberOfBands)

@@ -43,6 +43,8 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
     private val _lastUpdate = MutableStateFlow("")
     val lastUpdate: StateFlow<String> = _lastUpdate
 
+    private var lowBatteryNotified = false
+
     private val profileListener = object : BluetoothProfile.ServiceListener {
         override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
             if (profile == BluetoothProfile.HEADSET) {
@@ -97,6 +99,8 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel("tah6519", "TAH6519 Status", NotificationManager.IMPORTANCE_LOW)
             notificationManager.createNotificationChannel(channel)
+            val alertChannel = NotificationChannel("tah6519_alert", "TAH6519 Alerts", NotificationManager.IMPORTANCE_DEFAULT)
+            notificationManager.createNotificationChannel(alertChannel)
         }
     }
 
@@ -114,6 +118,23 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
             .setOnlyAlertOnce(true)
             .build()
         notificationManager.notify(1, notif)
+
+        // Low battery alert
+        if (connected && battery in 1..19 && !lowBatteryNotified) {
+            val alert = NotificationCompat.Builder(context, "tah6519_alert")
+                .setSmallIcon(android.R.drawable.stat_notify_error)
+                .setContentTitle("Lage batterij TAH6519")
+                .setContentText("Batterij is $battery%. Laad op.")
+                .setContentIntent(pending)
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .build()
+            notificationManager.notify(2, alert)
+            lowBatteryNotified = true
+        } else if (battery >= 20 || !connected) {
+            lowBatteryNotified = false
+            notificationManager.cancel(2)
+        }
     }
 
     private fun startPeriodicRefresh() {
@@ -130,6 +151,7 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
         try { context.unregisterReceiver(receiver) } catch (_: Exception) {}
         adapter?.closeProfileProxy(BluetoothProfile.HEADSET, headsetProxy)
         notificationManager.cancel(1)
+        notificationManager.cancel(2)
     }
 
     fun refresh() {
