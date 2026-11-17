@@ -4,15 +4,16 @@ Modern Android companion app for Philips TAH6519 over-ear ANC headphones.
 
 ## Features
 - Live connection status & battery monitoring (reflection + HF indicators)
-- Persistent status notification
+- Persistent status notification + low battery alert (<20%)
 - Auto-refresh on Bluetooth events + periodic (15s)
 - Media controls with volume slider, live metadata and album art
-- System equalizer + BassBoost + custom 5-band sliders + presets (Flat, Bass+, Treble, Rock, Pop, Jazz)
+- System equalizer + BassBoost slider + custom 5-band sliders + presets (Flat, Bass+, Treble, Rock, Pop, Jazz)
 - EQ frequentielabels + persistentie van instellingen
 - ANC mode tips (physical button)
 - Improved Material 3 UI with icons and progress
 - Dutch UI labels
 - Runtime permission requests
+- R8 minify + shrink voor kleinere/snellere release builds
 
 ## Notes
 - Battery level depends on headset reporting via hidden API / HFP indicators
@@ -22,4 +23,4 @@ Modern Android companion app for Philips TAH6519 over-ear ANC headphones.
 
 Built with Kotlin + Jetpack Compose.
 
-Version 1.5.0: EQ labels + persistent settings.
+Version 1.6.0: Low battery alert, BassBoost slider, R8 optimizations.
