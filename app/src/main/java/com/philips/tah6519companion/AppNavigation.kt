@@ -7,6 +7,7 @@ import androidx.navigation.compose.rememberNavController
 import com.philips.tah6519companion.ui.screens.DashboardScreen
 import com.philips.tah6519companion.ui.screens.EqualizerScreen
 import com.philips.tah6519companion.ui.screens.MediaScreen
+import com.philips.tah6519companion.ui.screens.SettingsScreen
 
 @Composable
 fun AppNavigation() {
@@ -15,5 +16,6 @@ fun AppNavigation() {
         composable("dashboard") { DashboardScreen(navController) }
         composable("media") { MediaScreen() }
         composable("eq") { EqualizerScreen() }
+        composable("settings") { SettingsScreen() }
     }
 }

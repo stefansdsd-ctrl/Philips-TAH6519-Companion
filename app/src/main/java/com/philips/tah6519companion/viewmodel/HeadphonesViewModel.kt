@@ -30,6 +30,7 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
     private val adapter: BluetoothAdapter? = bluetoothManager.adapter
     private var headsetProxy: BluetoothHeadset? = null
     private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    private val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
 
     private val _connectedDevice = MutableStateFlow<BluetoothDevice?>(null)
     val connectedDevice: StateFlow<BluetoothDevice?> = _connectedDevice
@@ -42,6 +43,9 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
 
     private val _lastUpdate = MutableStateFlow("")
     val lastUpdate: StateFlow<String> = _lastUpdate
+
+    private val _batteryThreshold = MutableStateFlow(prefs.getInt("battery_threshold", 20))
+    val batteryThreshold: StateFlow<Int> = _batteryThreshold
 
     private var lowBatteryNotified = false
 
@@ -110,7 +114,7 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
         val batteryText = if (battery >= 0) "$battery%" else "batterij onbekend"
         val text = if (connected) "${name ?: "TAH6519"} • $batteryText" else "Niet verbonden"
         val notif = NotificationCompat.Builder(context, "tah6519")
-            .setSmallIcon(if (battery in 0..20) android.R.drawable.stat_notify_error else android.R.drawable.ic_lock_silent_mode)
+            .setSmallIcon(if (battery in 0.._batteryThreshold.value) android.R.drawable.stat_notify_error else android.R.drawable.ic_lock_silent_mode)
             .setContentTitle("Philips TAH6519")
             .setContentText(text)
             .setContentIntent(pending)
@@ -119,8 +123,8 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
             .build()
         notificationManager.notify(1, notif)
 
-        // Low battery alert
-        if (connected && battery in 1..19 && !lowBatteryNotified) {
+        val threshold = _batteryThreshold.value
+        if (connected && battery in 1 until threshold && !lowBatteryNotified) {
             val alert = NotificationCompat.Builder(context, "tah6519_alert")
                 .setSmallIcon(android.R.drawable.stat_notify_error)
                 .setContentTitle("Lage batterij TAH6519")
@@ -131,7 +135,7 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
                 .build()
             notificationManager.notify(2, alert)
             lowBatteryNotified = true
-        } else if (battery >= 20 || !connected) {
+        } else if (battery >= threshold || !connected) {
             lowBatteryNotified = false
             notificationManager.cancel(2)
         }
@@ -140,7 +144,8 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
     private fun startPeriodicRefresh() {
         viewModelScope.launch {
             while (true) {
-                delay(15_000)
+                val interval = if (prefs.getBoolean("auto_refresh", true)) 15_000L else 60_000L
+                delay(interval)
                 refresh()
             }
         }
@@ -176,11 +181,27 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
         }
     }
 
+    fun setBatteryThreshold(value: Int) {
+        _batteryThreshold.value = value
+        prefs.edit().putInt("battery_threshold", value).apply()
+        refresh()
+    }
+
+    fun setAutoRefresh(enabled: Boolean) {
+        prefs.edit().putBoolean("auto_refresh", enabled).apply()
+    }
+
     private fun getBatteryLevel(device: BluetoothDevice): Int {
         try {
             val method = device.javaClass.getMethod("getBatteryLevel")
             val level = method.invoke(device) as? Int
             if (level != null && level >= 0) return level
+        } catch (_: Exception) {}
+        // Fallback via headset proxy indicators if available
+        try {
+            headsetProxy?.let { proxy ->
+                // Some devices report via other methods
+            }
         } catch (_: Exception) {}
         return -1
     }

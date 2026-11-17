@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.media.AudioManager
 import android.media.audiofx.BassBoost
 import android.media.audiofx.Equalizer
+import android.media.audiofx.Virtualizer
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import androidx.compose.foundation.Image
@@ -105,48 +106,65 @@ fun EqualizerScreen() {
     val prefs = remember { context.getSharedPreferences("eq_prefs", Context.MODE_PRIVATE) }
     var eq by remember { mutableStateOf<Equalizer?>(null) }
     var bass by remember { mutableStateOf<BassBoost?>(null) }
+    var virtualizer by remember { mutableStateOf<Virtualizer?>(null) }
     var bandLevels by remember { mutableStateOf(loadLevels(prefs)) }
     var bassStrength by remember { mutableIntStateOf(prefs.getInt("bass", 0)) }
+    var virtualStrength by remember { mutableIntStateOf(prefs.getInt("virtual", 0)) }
+    var eqEnabled by remember { mutableStateOf(prefs.getBoolean("eq_enabled", true)) }
 
     DisposableEffect(Unit) {
         try {
-            eq = Equalizer(0, 0).apply { enabled = true }
+            eq = Equalizer(0, 0).apply { enabled = eqEnabled }
             bass = BassBoost(0, 0).apply { enabled = true }
-            applyLevels(eq, bass, bandLevels, bassStrength)
+            virtualizer = Virtualizer(0, 0).apply { enabled = true }
+            applyLevels(eq, bass, virtualizer, bandLevels, bassStrength, virtualStrength)
         } catch (_: Exception) {}
         onDispose {
             eq?.release()
             bass?.release()
+            virtualizer?.release()
         }
     }
 
-    fun saveAndApply(levels: List<Int>, strength: Int = bassStrength) {
+    fun saveAndApply(levels: List<Int>, strength: Int = bassStrength, virt: Int = virtualStrength) {
         bandLevels = levels
         bassStrength = strength
+        virtualStrength = virt
         prefs.edit {
             levels.forEachIndexed { i, v -> putInt("band_$i", v) }
             putInt("bass", strength)
+            putInt("virtual", virt)
+            putBoolean("eq_enabled", eqEnabled)
         }
-        applyLevels(eq, bass, levels, strength)
+        applyLevels(eq, bass, virtualizer, levels, strength, virt)
+        eq?.enabled = eqEnabled
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("System Equalizer", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(8.dp))
-        Text("Geldt voor globale audio sessie", style = MaterialTheme.typography.bodySmall)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("EQ inschakelen")
+            Spacer(Modifier.width(8.dp))
+            Switch(checked = eqEnabled, onCheckedChange = {
+                eqEnabled = it
+                eq?.enabled = it
+                prefs.edit { putBoolean("eq_enabled", it) }
+            })
+        }
         Spacer(Modifier.height(16.dp))
 
         Text("Presets", style = MaterialTheme.typography.titleMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(onClick = { saveAndApply(listOf(0, 0, 0, 0, 0), 0) }, modifier = Modifier.weight(1f)) { Text("Flat") }
-            Button(onClick = { saveAndApply(listOf(600, 400, 0, -200, -400), 800) }, modifier = Modifier.weight(1f)) { Text("Bass+") }
-            Button(onClick = { saveAndApply(listOf(300, 100, -100, 200, 400), 200) }, modifier = Modifier.weight(1f)) { Text("Treble") }
+            Button(onClick = { saveAndApply(listOf(0, 0, 0, 0, 0), 0, 0) }, modifier = Modifier.weight(1f)) { Text("Flat") }
+            Button(onClick = { saveAndApply(listOf(600, 400, 0, -200, -400), 800, 200) }, modifier = Modifier.weight(1f)) { Text("Bass+") }
+            Button(onClick = { saveAndApply(listOf(300, 100, -100, 200, 400), 200, 100) }, modifier = Modifier.weight(1f)) { Text("Treble") }
         }
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(onClick = { saveAndApply(listOf(400, 200, -100, 100, 300), 400) }, modifier = Modifier.weight(1f)) { Text("Rock") }
-            Button(onClick = { saveAndApply(listOf(200, 0, 100, 200, 100), 100) }, modifier = Modifier.weight(1f)) { Text("Pop") }
-            Button(onClick = { saveAndApply(listOf(100, 0, 0, 100, 200), 0) }, modifier = Modifier.weight(1f)) { Text("Jazz") }
+            Button(onClick = { saveAndApply(listOf(400, 200, -100, 100, 300), 400, 300) }, modifier = Modifier.weight(1f)) { Text("Rock") }
+            Button(onClick = { saveAndApply(listOf(200, 0, 100, 200, 100), 100, 150) }, modifier = Modifier.weight(1f)) { Text("Pop") }
+            Button(onClick = { saveAndApply(listOf(100, 0, 0, 100, 200), 0, 250) }, modifier = Modifier.weight(1f)) { Text("Jazz") }
         }
         Spacer(Modifier.height(16.dp))
 
@@ -155,7 +173,18 @@ fun EqualizerScreen() {
             value = bassStrength.toFloat(),
             onValueChange = { v ->
                 bassStrength = v.toInt()
-                saveAndApply(bandLevels, bassStrength)
+                saveAndApply(bandLevels, bassStrength, virtualStrength)
+            },
+            valueRange = 0f..1000f,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Text("Virtualizer: $virtualStrength")
+        Slider(
+            value = virtualStrength.toFloat(),
+            onValueChange = { v ->
+                virtualStrength = v.toInt()
+                saveAndApply(bandLevels, bassStrength, virtualStrength)
             },
             valueRange = 0f..1000f,
             modifier = Modifier.fillMaxWidth()
@@ -189,11 +218,12 @@ fun EqualizerScreen() {
 private fun loadLevels(prefs: SharedPreferences): List<Int> =
     (0 until 5).map { prefs.getInt("band_$it", 0) }
 
-private fun applyLevels(eq: Equalizer?, bass: BassBoost?, levels: List<Int>, bassStrength: Int = 0) {
+private fun applyLevels(eq: Equalizer?, bass: BassBoost?, virt: Virtualizer?, levels: List<Int>, bassStrength: Int = 0, virtStrength: Int = 0) {
     eq?.let { e ->
         levels.forEachIndexed { i, level ->
             if (i < e.numberOfBands) e.setBandLevel(i.toShort(), level.toShort())
         }
     }
     bass?.setStrength(bassStrength.toShort())
+    virt?.setStrength(virtStrength.toShort())
 }

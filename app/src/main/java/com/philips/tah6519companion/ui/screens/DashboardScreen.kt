@@ -2,10 +2,11 @@ package com.philips.tah6519companion.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.BatteryAlert
+import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -55,7 +56,7 @@ fun DashboardScreen(navController: NavController) {
                 }
                 if (battery >= 0) {
                     LinearProgressIndicator(
-                        progress = battery / 100f,
+                        progress = { battery / 100f },
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                     )
                 }
@@ -76,6 +77,12 @@ fun DashboardScreen(navController: NavController) {
         Spacer(Modifier.height(8.dp))
         Button(onClick = { navController.navigate("eq") }, modifier = Modifier.fillMaxWidth()) {
             Text("Equalizer")
+        }
+        Spacer(Modifier.height(8.dp))
+        Button(onClick = { navController.navigate("settings") }, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.Settings, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Instellingen")
         }
         Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = { vm.refresh() }, modifier = Modifier.fillMaxWidth()) {
