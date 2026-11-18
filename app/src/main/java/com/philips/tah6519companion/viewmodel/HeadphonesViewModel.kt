@@ -44,6 +44,12 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
     private val _lastUpdate = MutableStateFlow("")
     val lastUpdate: StateFlow<String> = _lastUpdate
 
+    private val _deviceAddress = MutableStateFlow("")
+    val deviceAddress: StateFlow<String> = _deviceAddress
+
+    private val _batteryHistory = MutableStateFlow<List<String>>(emptyList())
+    val batteryHistory: StateFlow<List<String>> = _batteryHistory
+
     private val _batteryThreshold = MutableStateFlow(prefs.getInt("battery_threshold", 20))
     val batteryThreshold: StateFlow<Int> = _batteryThreshold
 
@@ -95,8 +101,29 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
             addAction(BluetoothHeadset.ACTION_HF_INDICATORS_VALUE_CHANGED)
         }
         context.registerReceiver(receiver, filter)
+        loadHistory()
         startPeriodicRefresh()
         refresh()
+    }
+
+    private fun loadHistory() {
+        val hist = prefs.getStringSet("battery_history", emptySet())?.toList()?.sortedDescending()?.take(10) ?: emptyList()
+        _batteryHistory.value = hist
+    }
+
+    private fun addToHistory(level: Int) {
+        if (level < 0) return
+        val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+        val entry = "$time: $level%"
+        val current = prefs.getStringSet("battery_history", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+        current.add(entry)
+        if (current.size > 15) {
+            val sorted = current.sortedDescending()
+            current.clear()
+            current.addAll(sorted.take(10))
+        }
+        prefs.edit().putStringSet("battery_history", current).apply()
+        loadHistory()
     }
 
     private fun createNotificationChannel() {
@@ -167,6 +194,7 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
                 it.name?.contains("Philips", ignoreCase = true) == true
             }
             _connectedDevice.value = device
+            _deviceAddress.value = device?.address ?: ""
             val connectedViaProxy = headsetProxy?.getConnectionState(device) == BluetoothProfile.STATE_CONNECTED
             val connected = device != null && (connectedViaProxy || isDeviceConnected(device))
             _isConnected.value = connected
@@ -175,7 +203,10 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
             device?.let {
                 battery = getBatteryLevel(it)
             }
-            if (battery >= 0) _batteryLevel.value = battery
+            if (battery >= 0) {
+                _batteryLevel.value = battery
+                addToHistory(battery)
+            }
             _lastUpdate.value = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             updateNotification(battery, connected, device?.name)
         }
@@ -196,12 +227,6 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
             val method = device.javaClass.getMethod("getBatteryLevel")
             val level = method.invoke(device) as? Int
             if (level != null && level >= 0) return level
-        } catch (_: Exception) {}
-        // Fallback via headset proxy indicators if available
-        try {
-            headsetProxy?.let { proxy ->
-                // Some devices report via other methods
-            }
         } catch (_: Exception) {}
         return -1
     }
