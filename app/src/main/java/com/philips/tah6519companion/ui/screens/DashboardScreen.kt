@@ -30,6 +30,8 @@ fun DashboardScreen(navController: NavController) {
     val battery by vm.batteryLevel.collectAsState()
     val connected by vm.isConnected.collectAsState()
     val lastUpdate by vm.lastUpdate.collectAsState()
+    val address by vm.deviceAddress.collectAsState()
+    val history by vm.batteryHistory.collectAsState()
 
     LaunchedEffect(Unit) { vm.refresh() }
 
@@ -47,6 +49,7 @@ fun DashboardScreen(navController: NavController) {
                 Text("Status: ${if (connected) "Verbonden" else "Niet verbonden"}", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
                 Text("Apparaat: ${device?.name ?: "Niet gevonden"}")
+                if (address.isNotEmpty()) Text("MAC: $address", style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val icon = if (battery in 0..15) Icons.Default.BatteryAlert else Icons.Default.BatteryFull
@@ -67,8 +70,14 @@ fun DashboardScreen(navController: NavController) {
             }
         }
 
+        if (history.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text("Batterij-geschiedenis:", style = MaterialTheme.typography.bodyMedium)
+            history.take(5).forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+        }
+
         Spacer(Modifier.height(16.dp))
-        Text("ANC / Transparantie: Gebruik de fysieke knop op de koptelefoon", style = MaterialTheme.typography.bodyMedium)
+        Text("ANC / Transparantie: fysieke knop op koptelefoon\n(Officiële Philips-app ondersteunt Awareness + Adaptive)", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(24.dp))
 
         Button(onClick = { navController.navigate("media") }, modifier = Modifier.fillMaxWidth()) {
