@@ -53,6 +53,6 @@ fun SettingsScreen() {
         Spacer(Modifier.height(24.dp))
         Text("EQ-instellingen worden bewaard in Equalizer-scherm.", style = MaterialTheme.typography.bodySmall)
         Spacer(Modifier.height(8.dp))
-        Text("Versie 1.7.0", style = MaterialTheme.typography.bodySmall)
+        Text("Versie 1.8.0", style = MaterialTheme.typography.bodySmall)
     }
 }
