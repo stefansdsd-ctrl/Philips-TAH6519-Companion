@@ -1,5 +1,6 @@
 package com.philips.tah6519companion.ui.screens
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryAlert
@@ -11,6 +12,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -71,8 +76,10 @@ fun DashboardScreen(navController: NavController) {
         }
 
         if (history.isNotEmpty()) {
+            Spacer(Modifier.height(16.dp))
+            Text("Batterij-geschiedenis", style = MaterialTheme.typography.titleMedium)
+            BatteryHistoryChart(history)
             Spacer(Modifier.height(8.dp))
-            Text("Batterij-geschiedenis:", style = MaterialTheme.typography.bodyMedium)
             history.take(5).forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
         }
 
@@ -98,6 +105,30 @@ fun DashboardScreen(navController: NavController) {
             Icon(Icons.Default.Refresh, contentDescription = null)
             Spacer(Modifier.width(8.dp))
             Text("Vernieuwen")
+        }
+    }
+}
+
+@Composable
+fun BatteryHistoryChart(history: List<String>) {
+    val levels = history.mapNotNull { entry ->
+        entry.substringAfter(": ").removeSuffix("%").toIntOrNull()
+    }.reversed().takeLast(10)
+    if (levels.size < 2) return
+
+    Canvas(modifier = Modifier.fillMaxWidth().height(100.dp).padding(vertical = 8.dp)) {
+        val path = Path()
+        val stepX = size.width / (levels.size - 1).coerceAtLeast(1)
+        levels.forEachIndexed { i, level ->
+            val x = i * stepX
+            val y = size.height - (level / 100f * size.height)
+            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        drawPath(path, Color(0xFF1976D2), style = Stroke(width = 4f))
+        levels.forEachIndexed { i, level ->
+            val x = i * stepX
+            val y = size.height - (level / 100f * size.height)
+            drawCircle(Color(0xFF1976D2), 6f, Offset(x, y))
         }
     }
 }
