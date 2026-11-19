@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
+import kotlinx.coroutines.delay
 
 private val bandFrequencies = listOf("60 Hz", "230 Hz", "910 Hz", "3.6 kHz", "14 kHz")
 
@@ -36,6 +37,8 @@ fun MediaScreen() {
     var isPlaying by remember { mutableStateOf(false) }
     var volume by remember { mutableFloatStateOf(audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)) }
     var albumArt by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var position by remember { mutableLongStateOf(0L) }
+    var duration by remember { mutableLongStateOf(0L) }
 
     DisposableEffect(Unit) {
         val msm = context.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
@@ -48,9 +51,11 @@ fun MediaScreen() {
                 title = metadata?.getString(android.media.MediaMetadata.METADATA_KEY_TITLE) ?: "Onbekend"
                 artist = metadata?.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST) ?: ""
                 albumArt = metadata?.getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART)
+                duration = metadata?.getLong(android.media.MediaMetadata.METADATA_KEY_DURATION) ?: 0L
             }
             override fun onPlaybackStateChanged(state: android.media.session.PlaybackState?) {
                 isPlaying = state?.state == android.media.session.PlaybackState.STATE_PLAYING
+                position = state?.position ?: 0L
             }
         }
         mc?.registerCallback(callback)
@@ -59,9 +64,18 @@ fun MediaScreen() {
             artist = it.metadata?.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST) ?: ""
             isPlaying = it.playbackState?.state == android.media.session.PlaybackState.STATE_PLAYING
             albumArt = it.metadata?.getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART)
+            duration = it.metadata?.getLong(android.media.MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+            position = it.playbackState?.position ?: 0L
         }
 
         onDispose { mc?.unregisterCallback(callback) }
+    }
+
+    LaunchedEffect(isPlaying) {
+        while (isPlaying) {
+            delay(1000)
+            controller?.playbackState?.let { position = it.position }
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -73,7 +87,20 @@ fun MediaScreen() {
         }
         Text(title, style = MaterialTheme.typography.titleMedium)
         if (artist.isNotEmpty()) Text(artist, style = MaterialTheme.typography.bodyMedium)
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(16.dp))
+
+        if (duration > 0) {
+            Slider(
+                value = position.toFloat().coerceIn(0f, duration.toFloat()),
+                onValueChange = { position = it.toLong() },
+                onValueChangeFinished = { controller?.transportControls?.seekTo(position) },
+                valueRange = 0f..duration.toFloat(),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text("${formatTime(position)} / ${formatTime(duration)}", style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(8.dp))
+        }
+
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             IconButton(onClick = { controller?.transportControls?.skipToPrevious() }) {
                 Icon(Icons.Default.SkipPrevious, contentDescription = "Vorige")
@@ -98,6 +125,13 @@ fun MediaScreen() {
             modifier = Modifier.fillMaxWidth()
         )
     }
+}
+
+private fun formatTime(ms: Long): String {
+    val totalSeconds = ms / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return String.format("%d:%02d", minutes, seconds)
 }
 
 @Composable
