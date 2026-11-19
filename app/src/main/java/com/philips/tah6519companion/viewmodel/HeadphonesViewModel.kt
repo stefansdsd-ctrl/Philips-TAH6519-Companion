@@ -54,6 +54,7 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
     val batteryThreshold: StateFlow<Int> = _batteryThreshold
 
     private var lowBatteryNotified = false
+    private var lastHfBattery = -1
 
     private val profileListener = object : BluetoothProfile.ServiceListener {
         override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
@@ -80,7 +81,10 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
                         val id = intent.getIntExtra(BluetoothHeadset.EXTRA_HF_INDICATORS_IND_ID, -1)
                         if (id == 2) {
                             val value = intent.getIntExtra(BluetoothHeadset.EXTRA_HF_INDICATORS_IND_VALUE, -1)
-                            if (value >= 0) _batteryLevel.value = value
+                            if (value >= 0) {
+                                lastHfBattery = value
+                                _batteryLevel.value = value
+                            }
                         }
                     }
                     refresh()
@@ -189,19 +193,21 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
     fun refresh() {
         viewModelScope.launch {
             val bonded = adapter?.bondedDevices ?: emptySet()
-            val device = bonded.firstOrNull {
-                it.name?.contains("TAH6519", ignoreCase = true) == true ||
-                it.name?.contains("Philips", ignoreCase = true) == true
-            }
+            val preferredMac = prefs.getString("preferred_mac", null)
+            val device = bonded.firstOrNull { it.address == preferredMac }
+                ?: bonded.firstOrNull {
+                    it.name?.contains("TAH6519", ignoreCase = true) == true ||
+                    it.name?.contains("Philips", ignoreCase = true) == true
+                }
             _connectedDevice.value = device
             _deviceAddress.value = device?.address ?: ""
             val connectedViaProxy = headsetProxy?.getConnectionState(device) == BluetoothProfile.STATE_CONNECTED
             val connected = device != null && (connectedViaProxy || isDeviceConnected(device))
             _isConnected.value = connected
 
-            var battery = -1
-            device?.let {
-                battery = getBatteryLevel(it)
+            var battery = lastHfBattery
+            if (battery < 0) {
+                device?.let { battery = getBatteryLevel(it) }
             }
             if (battery >= 0) {
                 _batteryLevel.value = battery
@@ -220,6 +226,11 @@ class HeadphonesViewModel(private val context: Context) : ViewModel() {
 
     fun setAutoRefresh(enabled: Boolean) {
         prefs.edit().putBoolean("auto_refresh", enabled).apply()
+    }
+
+    fun setPreferredMac(mac: String?) {
+        prefs.edit().putString("preferred_mac", mac).apply()
+        refresh()
     }
 
     private fun getBatteryLevel(device: BluetoothDevice): Int {
